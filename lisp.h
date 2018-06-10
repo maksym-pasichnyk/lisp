@@ -1,8 +1,9 @@
 #pragma once
 
 #include <map>
-#include <vector>
+#include <list>
 #include <string>
+#include <vector>
 #include <functional>
 
 struct lisp {
@@ -13,23 +14,20 @@ struct lisp {
     struct Env;
     struct Cell {
     public:
+        enum Type { Symbol, Number, List, Proc, Lambda, Pointer } type;
 
-        typedef std::vector<Cell>::iterator iterator;
-        typedef std::vector<Cell>::const_iterator const_iterator;
-
-        enum Type { Symbol, Number, List, Proc, Lambda } type;
+        void* ptr;
         int number{};
         std::string symbol;
         std::vector<Cell> list;
         Cell(*proc)(Env*, Args){};
 
         Cell(Type type = Symbol);
+        Cell(void* ptr);
         Cell(int number);
         Cell(std::string symbol);
         Cell(std::vector<Cell> list);
         Cell(Cell(*proc)(Env*, Args));
-
-        inline Cell operator()(Env* env, Args args);
 
         std::string to_string() const;
     };
@@ -45,9 +43,9 @@ struct lisp {
     };
 
     static Cell eval(Env* env, const std::string& source);
+    static Cell eval(Env* env, Cell cell);
 
 private:
     static Cell parse(const std::string &source);
-    static Cell eval(Env* env, Cell cell);
     static Cell parse(std::vector<struct token>::iterator &tokens);
 };
