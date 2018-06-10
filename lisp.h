@@ -13,6 +13,7 @@ struct lisp {
     struct Env;
     struct Cell {
     public:
+
         typedef std::vector<Cell>::iterator iterator;
         typedef std::vector<Cell>::const_iterator const_iterator;
 
@@ -21,25 +22,16 @@ struct lisp {
         std::string symbol;
         std::vector<Cell> list;
         Cell(*proc)(Env*, Args){};
-        std::function<Cell(Env*, Cell)> lambda;
 
         Cell(Type type = Symbol);
         Cell(int number);
         Cell(std::string symbol);
         Cell(std::vector<Cell> list);
         Cell(Cell(*proc)(Env*, Args));
-        Cell(std::function<Cell(Env*, Cell)> lambda);
-
-        inline Cell& operator[](int index);
-        inline const Cell& operator[](int index) const;
-        inline iterator begin();
-        inline const_iterator begin() const;
-        inline iterator end();
-        inline const_iterator end() const;
 
         inline Cell operator()(Env* env, Args args);
 
-        inline std::string to_string() const;
+        std::string to_string() const;
     };
 
     struct Env {
