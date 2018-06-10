@@ -1,8 +1,5 @@
 #include "lisp.h"
 
-using Env = lisp::Env;
-using Cell = lisp::Cell;
-
 static const unsigned char attr[256] = {
     0,
     1, 1, 1, 1, 1, 1, 1, 1, 2, 2,
@@ -75,33 +72,34 @@ static std::vector<token> lex(const char* input) {
     return out;
 }
 
-Cell::Cell(Cell::Type type) : type(type) {}
-Cell::Cell(int number) : type(Number), number(number) {}
-Cell::Cell(std::string symbol) : type(Symbol), symbol(std::move(symbol)) {}
-Cell::Cell(std::vector<Cell> list) : type(List), list(std::move(list)) {}
-Cell::Cell(Cell (*proc)(Env* , Args)) : type(Type::Proc), proc(proc) {}
-Cell::Cell(std::function<Cell(Env* , Cell)> lambda) : type(Type::Lambda), lambda(std::move(lambda)) {}
+lisp::Cell::Cell(Cell::Type type) : type(type) {}
+lisp::Cell::Cell(int number) : type(Number), number(number) {}
+lisp::Cell::Cell(std::string symbol) : type(Symbol), symbol(std::move(symbol)) {}
+lisp::Cell::Cell(std::vector<Cell> list) : type(List), list(std::move(list)) {}
+lisp::Cell::Cell(Cell(*proc)(Env* , Args)) : type(Proc), proc(proc) {}
 
-Cell& Cell::operator[](int index) { return list[index]; }
-const Cell& Cell::operator[](int index) const { return list[index]; }
-Cell::iterator Cell::begin() { return list.begin(); }
-Cell::const_iterator Cell::begin() const { return list.begin(); }
-Cell::iterator Cell::end() { return list.end(); }
-Cell::const_iterator Cell::end() const { return list.end(); }
-
-Cell Cell::operator()(Env* env, const std::vector<Cell>& args) {
-    if (type == Cell::Proc) return proc(env, args);
-    if (type == Cell::Lambda) return lambda(env, args);
+lisp::Cell lisp::Cell::operator()(lisp::Env* env, lisp::Args args) {
+    if (type == lisp::Cell::Proc) {
+        return proc(env, args);
+    }
+    if (type == lisp::Cell::Lambda) {
+        auto context = new Env(list[1].list, args, env);
+        auto result = eval(context, list[2]);
+        delete context;
+        return result;
+    }
     return 0;
 }
 
-std::string Cell::to_string() const {
+std::string lisp::Cell::to_string() const {
     if (type == Type::Symbol) return symbol;
     if (type == Type::Number) return std::to_string(number);
     if (type == Type::List) {
         std::string str;
-        for (const auto& e : list) str.append(e.to_string()).push_back(' ');
-        str.pop_back();
+        if (!list.empty()) {
+            for (const auto &e : list) str.append(e.to_string()).push_back(' ');
+            str.pop_back();
+        }
         return "(" + str + ")";
     }
     if (type == Type::Proc) return "<Proc>";
@@ -109,14 +107,13 @@ std::string Cell::to_string() const {
     return "";
 }
 
-Env::Env(const std::vector<Cell>& args, const std::vector<Cell>& values, Env* super)
-        : table(), super(super) {
+lisp::Env::Env(const std::vector<lisp::Cell>& args, const std::vector<lisp::Cell>& values, lisp::Env* super) : table(), super(super) {
     auto value = values.begin();
 
     for (auto& arg : args) table[arg.symbol] =* value++;
 }
 
-Cell& Env::Find(const std::string& name) {
+lisp::Cell& lisp::Env::Find(const std::string& name) {
     auto symbol = table.find(name);
 
     if (symbol != table.end()) {
@@ -131,14 +128,14 @@ Cell& Env::Find(const std::string& name) {
     return super->Find(name);
 }
 
-Cell lisp::parse(const std::string& source) {
+lisp::Cell lisp::parse(const std::string& source) {
     auto tokens = lex(source.c_str());
     auto it = tokens.begin();
 
     return it != tokens.end() ? parse(it) : 0;
 }
 
-Cell lisp::parse(std::vector<token>::iterator& tokens) {
+lisp::Cell lisp::parse(std::vector<token>::iterator& tokens) {
     auto tok = *tokens++;
 
     if (tok.type == '(') {
@@ -158,30 +155,26 @@ Cell lisp::parse(std::vector<token>::iterator& tokens) {
     return tok.buffer;
 }
 
-Cell lisp::eval(Env* env, Cell cell) {
+lisp::Cell lisp::eval(Env* env, Cell cell) {
     if (cell.type == Cell::Type::Number) return cell;
     if (cell.type == Cell::Type::Symbol) return env->Find(cell.symbol);
     if (cell.type == Cell::Type::List) {
-        if (cell[0].symbol == "quote") return cell[1];
-        if (cell[0].symbol == "define") {
-            return env->table[cell[1].symbol] = eval(env, cell[2]);
+        if (cell.list[0].symbol == "quote") return cell.list[1];
+        if (cell.list[0].symbol == "define") {
+            return env->table[cell.list[1].symbol] = eval(env, cell.list[2]);
         }
-        if (cell[0].symbol == "lambda") {
-            return Cell([cell](Env* env, Cell args) -> Cell {
-                auto context = new Env(cell[1].list, args.list, env);
-                auto result = eval(context, cell[2]);
-                delete context;
-                return result;
-            });
+        if (cell.list[0].symbol == "lambda") {
+            cell.type = Cell::Lambda;
+            return cell;
         }
 
-        for (auto& arg : cell) arg = eval(env, arg);
+        for (auto& arg : cell.list) arg = eval(env, arg);
 
-        return cell[0](env, std::vector<Cell>(cell.begin() + 1, cell.end()));
+        return cell.list[0](env, std::vector<Cell>(cell.list.begin() + 1, cell.list.end()));
     }
     return cell;
 }
 
-Cell lisp::eval(Env* env, const std::string& source) {
+lisp::Cell lisp::eval(Env* env, const std::string& source) {
     return eval(env, parse(source));
 }
