@@ -98,7 +98,7 @@ static std::vector<token> lex(const char* input) {
             out.push_back({256, std::string(buf, input - buf)});
         } else if (ispunct(input[0])) {
             const char* buf = input++;
-            while (ispunct(input[0]) && (input[0] != '(') && (input[0] != ')')) {
+            while (ispunct(input[0]) && (input[0] != '(') && (input[0] != ')') && (input[0] != '\'')) {
                 ++input;
             }
             out.push_back({257, std::string(buf, input - buf)});
@@ -224,10 +224,14 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
         if (cell.list.empty()) return cell;
 
         if (cell.list[0].symbol == "#") {
-            for (auto& arg : cell.list[1].list) {
-                arg = eval(env, arg);
+            if (cell.list[1].type == Cell::Type::List) {
+                for (auto& arg : cell.list[1].list) {
+                    arg = eval(env, arg);
+                }
+                return cell.list[1];
+            } else {
+                return eval(env, cell.list[1]);
             }
-            return cell.list[1];
         }
 
         if (cell.list[0].symbol == "...") {
