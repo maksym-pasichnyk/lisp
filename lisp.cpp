@@ -134,7 +134,14 @@ std::string lisp::Cell::to_string() const {
         return "(" + str + ")";
     }
     if (type == Type::Procedure) return "<Proc>";
-    if (type == Type::Lambda) return "<Lambda>";
+    if (type == Type::Lambda){
+        std::string str;
+        if (!list.empty()) {
+            for (const auto &e : list) str.append(e.to_string()).push_back(' ');
+            str.pop_back();
+        }
+        return "lambda: (" + str + ")";
+    }
     return "";
 }
 
@@ -160,12 +167,12 @@ lisp::Cell& lisp::Env::Find(const std::string& name) {
 }
 
 void lisp::Env::dump() {
-    for (const auto&[key, val] : table) {
-        printf("%s: %s\n", key.c_str(), val.to_string().c_str());
-    }
-    printf("\n");
-
-    if (super) super->dump();
+//    for (const auto&[key, val] : table) {
+//        printf("%s: %s\n", key.c_str(), val.to_string().c_str());
+//    }
+//    printf("\n");
+//
+//    if (super) super->dump();
 }
 
 lisp::Cell lisp::parse(const std::string& source) {
@@ -243,7 +250,7 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
         if (cell.list[0].symbol == "define") {
             auto global = env;
             while (global->super) global = global->super;
-            return global->table[cell.list[1].symbol] = eval(env, cell.list[2]);
+            return global->table[eval(env, cell.list[1]).symbol] = eval(env, cell.list[2]);
         }
 //        if (cell.list[0].symbol == "extern") {
 //            return env->table[cell.list[1].symbol] = Func(dlsym(RTLD_DEFAULT, cell.list[2].symbol.c_str()));
@@ -252,6 +259,8 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
             cell.env = new Env{{}, nullptr};
             cell.lambda = cell.env->unique++;
             cell.type = Cell::Type::Lambda;
+            cell.list[1] = eval(env, cell.list[1]);
+            cell.list[2] = eval(env, cell.list[2]);
             return cell;
         }
         if (cell.list[0].symbol == "begin") {
