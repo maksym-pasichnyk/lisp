@@ -177,9 +177,9 @@ lisp::Cell proc_mul(lisp::Env* env, lisp::Args args) {
 //}
 //
 extern "C" {
-    lisp::Cell c_func(lisp::Env* env, lisp::Args args) {
-        return std::string("Hello from C!");
-    }
+lisp::Cell c_func(lisp::Env* env, lisp::Args args) {
+    return std::string("Hello from C!");
+}
 }
 
 int main() {
@@ -212,20 +212,29 @@ int main() {
     env.table["true"] = 1;
     env.table["null"] = (void*)nullptr;
 
-    lisp::eval(&env, "(define func(=> (name args body)(eval #('define name(eval #('=> args body))))))");
-    lisp::eval(&env, "(func 'def '(name val) '(eval #('define name val)))");
-    lisp::eval(&env, "(func 'map '(func lst) '(if '(!= lst '()) '(begin((eval func) ([] 0 lst))(map func (tail lst))) null))");
-    lisp::eval(&env, "(func 'for_each '(val list body) '(map #('=> #(val) body) list))");
+    lisp::eval(&env, "(define 'func (=> '(name args body) '(define name (=> args body))))");
+    lisp::eval(&env, "(func 'def '(name val) '(define name val))");
+    lisp::eval(&env, "(func 'map '(func lst) '(if (!= lst '()) '(begin((eval func) ([] 0 lst))(map func (tail lst))) '()))");
+//    lisp::eval(&env, "(func 'foreach '(val list body) '(map #('=> #(val) body) list))");
     lisp::eval(&env, "(func 'extern '(name symbol) '(def name (dlsym RTLD_DEFAULT symbol)))");
-    lisp::eval(&env, "(func 'let '(arg body) '(eval( ('=> (([] 0 arg)) body) ([] 1 arg))))");
-
-    lisp::eval(&env, "(print)");
-
-    lisp::eval(&env, R"((extern 'c_func "c_func"))");
-
-    lisp::eval(&env, R"((map '(=> (a) (print a " * " a " = " (* a a))) '(10 11 12 13 14 15 16 17)))");
-    lisp::eval(&env, "(print)");
-    lisp::eval(&env, R"((for_each 'a '(10 11 12 13 14 15 16 17) '(print a " * " a " = " (* a a))))");
+//    lisp::eval(&env, "(func 'let '(arg body) '(eval #(#('=> #((front arg)) body) ([] 1 arg))))");
+//
+    lisp::eval(&env, "(func 'test '(lst) '(foreach 'a lst '(print a)))");
+//
+//    lisp::eval(&env, R"((def 'v "dfsdfsd"))");
+//    lisp::eval(&env, "(print v)");
+//
+//    lisp::eval(&env, "(test '((a 10) (b 12) (c 13)))");
+//
+//    lisp::eval(&env, "(print)");
+//
+//    lisp::eval(&env, R"((extern 'c_func "c_func"))");
+//
+//    lisp::eval(&env, "(let '(a 10) '(print a))");
+//
+    lisp::eval(&env, R"((map '(=> '(a) '(print a " * " a " = " (* a a))) '(11)))");
+//    lisp::eval(&env, "(print)");
+//    lisp::eval(&env, R"((foreach 'a '(10 11 12 13 14 15 16 17) '(print a " * " a " = " (* a a))))");
 //    lisp::ev  al(&env, "(extern print proc_print)");
 //    lisp::eval(&env, "(extern eval proc_eval)");
 //    lisp::eval(&env, "(extern new proc_new)");
@@ -235,7 +244,7 @@ int main() {
 //    lisp::eval(&env, "(extern cpp_func _Z8cpp_funcPN4lisp3EnvERKSt6vectorINS_4CellESaIS3_EE)");
 //    lisp::eval(&env, "(extern printf proc_printf)");
 //
-    lisp::eval(&env, "(print (c_func))");
+//    lisp::eval(&env, "(print (c_func))");
 //    lisp::eval(&env, "(print (cpp_func))");
 //    lisp::eval(&env, "(define a (new 4))");
 //    lisp::eval(&env, "(print a)");
