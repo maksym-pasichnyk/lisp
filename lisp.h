@@ -7,25 +7,32 @@
 #include <functional>
 
 struct lisp {
+    struct Env;
     struct Cell;
 
     typedef const std::vector<Cell>& Args;
+    typedef lisp::Cell(*Func)(Env*, Args);
 
-    struct Env;
+    struct Symbol : std::string {};
+
     struct Cell {
     public:
-        enum Type { Symbol, Number, List, Proc, Lambda, Pointer } type;
+        enum class Type { Symbol, Number, List, Procedure, Lambda, Pointer, String } type;
 
         void* ptr;
         int number{};
+        std::string text;
         std::string symbol;
         std::vector<Cell> list;
         Cell(*proc)(Env*, Args){};
+        Env* env = nullptr;
+        int lambda {};
 
-        Cell(Type type = Symbol);
+        Cell();
         Cell(void* ptr);
         Cell(int number);
-        Cell(std::string symbol);
+        Cell(Symbol symbol);
+        Cell(std::string text);
         Cell(std::vector<Cell> list);
         Cell(Cell(*proc)(Env*, Args));
 
@@ -34,15 +41,17 @@ struct lisp {
 
     struct Env {
     public:
-        std::map<std::string, Cell> table;
-        Env *super;
-
-        Env(Args args, Args values, Env* super);
+        std::map<std::string, Cell> table{};
+        Env *super = nullptr;
 
         Cell& Find(const std::string& name);
+
+        void dump();
+
+        int unique = 0;
     };
 
-    static Cell eval(Env* env, const std::string& source);
+    static Cell eval(Env *env, const std::string &source);
     static Cell eval(Env* env, Cell cell);
 
 private:
