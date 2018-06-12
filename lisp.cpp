@@ -1,5 +1,6 @@
 #include "lisp.h"
 #include <sstream>
+#include <dlfcn.h>
 
 //static const unsigned char attr[256] = {
 //    0,
@@ -72,13 +73,19 @@ static std::vector<token> lex(const char* input) {
 
     while (*input) {
         while (isspace(*input)) ++input;
-
-        if (input[0] == '(') {
+        if (input[0] == '\'') {
+            out.push_back({'\'', "'"});
+            input++;
+        } else if (input[0] == '(') {
             out.push_back({'(', "("});
             input++;
         } else if (input[0] == ')') {
             out.push_back({')', ")"});
             input++;
+        } else if (input[0] == '"') {
+            const char* buf = ++input;
+            while (input[0] != '"') ++input;
+            out.push_back({258, std::string(buf, input++ - buf)});
         } else if (isalpha(input[0]) || (input[0] == '_')) {
             const char* buf = input++;
             while (isalnum(input[0]) || (input[0] == '_')) ++input;
@@ -101,12 +108,13 @@ static std::vector<token> lex(const char* input) {
     return out;
 }
 
-lisp::Cell::Cell(Cell::Type type) : type(Pointer), ptr(0) {}
-lisp::Cell::Cell(void* ptr) : type(Pointer), ptr(ptr) {}
-lisp::Cell::Cell(int number) : type(Number), number(number) {}
-lisp::Cell::Cell(std::string symbol) : type(Symbol), symbol(std::move(symbol)) {}
-lisp::Cell::Cell(std::vector<Cell> list) : type(List), list(std::move(list)) {}
-lisp::Cell::Cell(Cell(*proc)(Env* , Args)) : type(Proc), proc(proc) {}
+lisp::Cell::Cell() : type(Type::Pointer), ptr(nullptr) {}
+lisp::Cell::Cell(void* ptr) : type(Type::Pointer), ptr(ptr) {}
+lisp::Cell::Cell(int number) : type(Type::Number), number(number)  {}
+lisp::Cell::Cell(Symbol symbol) : type(Type::Symbol), symbol(std::move(symbol)) {}
+lisp::Cell::Cell(std::string text) : type(Type::String), text(std::move(text)) {}
+lisp::Cell::Cell(std::vector<Cell> list) : type(Type::List), list(std::move(list)) {}
+lisp::Cell::Cell(Func proc) : type(Type::Procedure), proc(proc) {}
 
 std::string lisp::Cell::to_string() const {
     if (type == Type::Pointer) {
@@ -114,6 +122,7 @@ std::string lisp::Cell::to_string() const {
         stream << ptr;
         return stream.str();
     }
+    if (type == Type::String) return text;
     if (type == Type::Symbol) return symbol;
     if (type == Type::Number) return std::to_string(number);
     if (type == Type::List) {
@@ -124,16 +133,16 @@ std::string lisp::Cell::to_string() const {
         }
         return "(" + str + ")";
     }
-    if (type == Type::Proc) return "<Proc>";
+    if (type == Type::Procedure) return "<Proc>";
     if (type == Type::Lambda) return "<Lambda>";
     return "";
 }
 
-lisp::Env::Env(const std::vector<lisp::Cell>& args, const std::vector<lisp::Cell>& values, lisp::Env* super) : table(), super(super) {
-    auto value = values.begin();
+/*lisp::Env::Env(const std::vector<lisp::Cell>& args, const std::vector<lisp::Cell>& values, lisp::Env* super) : table(), super(super) {
+    /*auto value = values.begin();
 
     for (auto& arg : args) table[arg.symbol] =* value++;
-}
+}*/
 
 lisp::Cell& lisp::Env::Find(const std::string& name) {
     auto symbol = table.find(name);
@@ -150,19 +159,43 @@ lisp::Cell& lisp::Env::Find(const std::string& name) {
     return super->Find(name);
 }
 
+void lisp::Env::dump() {
+    for (const auto&[key, val] : table) {
+        printf("%s: %s\n", key.c_str(), val.to_string().c_str());
+    }
+    printf("\n");
+
+    if (super) super->dump();
+}
+
 lisp::Cell lisp::parse(const std::string& source) {
     auto tokens = lex(source.c_str());
     auto it = tokens.begin();
 
-    return it != tokens.end() ? parse(it) : 0;
+    return it != tokens.end() ? parse(it) : (0);
 }
 
 lisp::Cell lisp::parse(std::vector<token>::iterator& tokens) {
     auto tok = *tokens++;
 
+    if (tok.type == '\'') {
+        Cell cell;
+        cell.symbol = "quote";
+        cell.type = Cell::Type ::Symbol;
+
+        return std::vector<Cell>{cell, parse(tokens)};
+    }
+
+    if (tok.buffer == "#") {
+        Cell cell;
+        cell.symbol = "#";
+        cell.type = Cell::Type ::Symbol;
+
+        return std::vector<Cell>{cell, parse(tokens)};
+    }
+
     if (tok.type == '(') {
         std::vector<Cell> cells;
-
         while ((*tokens).type != ')') {
             cells.push_back(parse(tokens));
         }
@@ -174,43 +207,80 @@ lisp::Cell lisp::parse(std::vector<token>::iterator& tokens) {
         return std::stoi(tok.buffer);
     }
 
-    return tok.buffer;
+    if (tok.type == 257) {
+        return (const Symbol&) tok.buffer;
+    }
+
+    if (tok.type == 258) {
+        return tok.buffer;
+    }
 }
 
 lisp::Cell lisp::eval(Env* env, Cell cell) {
+    if (cell.type == Cell::Type::String) return cell;
     if (cell.type == Cell::Type::Number) return cell;
     if (cell.type == Cell::Type::Symbol) return env->Find(cell.symbol);
     if (cell.type == Cell::Type::List) {
-        if (cell.list[0].symbol == "quote") return cell.list[1];
-        if (cell.list[0].symbol == "define") {
-            return env->table[cell.list[1].symbol] = eval(env, cell.list[2]);
+        if (cell.list.empty()) return cell;
+
+        if (cell.list[0].symbol == "#") {
+            for (auto& arg : cell.list[1].list) {
+                arg = eval(env, arg);
+            }
+            return cell.list[1];
         }
-        if (cell.list[0].symbol == "lambda") {
-            cell.type = Cell::Lambda;
+
+        if (cell.list[0].symbol == "...") {
+            return Cell();
+        }
+        if (cell.list[0].symbol == "quote") {
+            return cell.list[1];
+        }
+        if (cell.list[0].symbol == "define") {
+            auto global = env;
+            while (global->super) global = global->super;
+            return global->table[cell.list[1].symbol] = eval(env, cell.list[2]);
+        }
+//        if (cell.list[0].symbol == "extern") {
+//            return env->table[cell.list[1].symbol] = Func(dlsym(RTLD_DEFAULT, cell.list[2].symbol.c_str()));
+//        }
+        if (cell.list[0].symbol == "=>") {
+            cell.env = new Env{{}, nullptr};
+            cell.lambda = cell.env->unique++;
+            cell.type = Cell::Type::Lambda;
             return cell;
         }
         if (cell.list[0].symbol == "begin") {
-            auto context = new Env({}, {}, env);
+            Env context {{}, env};
             for (size_t i = 1; i < cell.list.size() - 1; ++i) {
-                eval(env, cell.list[i]);
+                eval(&context, cell.list[i]);
             }
-            auto result = eval(env, cell.list[cell.list.size() - 1]);
-            delete context;
-            return result;
+            return eval(&context, cell.list[cell.list.size() - 1]);
         }
 
-        for (auto& arg : cell.list) arg = eval(env, arg);
-
-        if (cell.list[0].type == Cell::Proc) {
-            return cell.list[0].proc(env, std::vector<Cell>(cell.list.begin() + 1, cell.list.end()));
+        for (auto& arg : cell.list) {
+            arg = eval(env, arg);
         }
 
-        if (cell.list[0].type == Cell::Lambda) {
-            auto context = new Env(cell.list[0].list[1].list, std::vector<Cell>(cell.list.begin() + 1, cell.list.end()), env);
-            auto result = eval(context, cell.list[0].list[2]);
-            delete context;
-            return result;
+        if (cell.list[0].type == Cell::Type::Procedure) {
+            Env context {{}, env};
+            return cell.list[0].proc(&context, std::vector<Cell>(cell.list.begin() + 1, cell.list.end()));
         }
+
+        if (cell.list[0].type == Cell::Type::Lambda) {
+            Env context;
+            context.super = env;
+
+            auto values = cell.list.begin() + 1;
+            for (auto& arg : cell.list[0].list[1].list) {
+                context.table[arg.symbol] = *values++;
+            }
+
+            return eval(&context, cell.list[0].list[2]);
+        }
+
+        printf("error: %s\n", cell.to_string().c_str());
+        exit(1);
     }
     return cell;
 }
