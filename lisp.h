@@ -54,7 +54,6 @@ struct lisp {
 
     typedef std::vector<Cell> List;
     typedef lisp::Cell(*Func)(Env*, const List&);
-    //typedef lisp::Cell(*Macro)(Env*, Cell);
 
     struct Symbol : std::string {
         Symbol(const std::string& str) : std::string(str) {}
@@ -88,6 +87,7 @@ struct lisp {
         bool _quote_ = false;
         bool _super_ = false;
         bool _inline_ = false;
+        bool _variadic_ = false;
     };
 
     struct Env {
@@ -114,4 +114,6 @@ struct lisp {
 private:
     static Cell parse(const std::string &source);
     static Cell parse(std::vector<struct token>::iterator &tokens);
+
+    static Cell apply(Env *env, Cell cell);
 };
