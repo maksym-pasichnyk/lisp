@@ -54,6 +54,7 @@ struct lisp {
 
     typedef std::vector<Cell> List;
     typedef lisp::Cell(*Func)(Env*, const List&);
+    //typedef lisp::Cell(*Macro)(Env*, Cell);
 
     struct Symbol : std::string {
         Symbol(const std::string& str) : std::string(str) {}
