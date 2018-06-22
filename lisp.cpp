@@ -124,6 +124,10 @@ std::string lisp::Cell::to_string() const {
         str.push_back('\'');
     }
 
+    if (_variadic_) {
+        str.append("...");
+    }
+
     if (type == Type::Pointer) {
         std::stringstream stream;
         stream << ptr;
@@ -351,7 +355,6 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
 
             auto arg = args.list.begin();
             auto end = args.list.end();
-
 
             while (arg != end) {
                 if ((*arg)._variadic_) {
