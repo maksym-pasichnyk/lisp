@@ -118,34 +118,47 @@ lisp::Cell::Cell(std::vector<Cell> list) : type(Type::List), list(std::move(list
 lisp::Cell::Cell(Func proc) : type(Type::Procedure), proc(proc) {}
 
 std::string lisp::Cell::to_string() const {
+    std::string str;
+
+    if (_quote_) {
+        str.push_back('\'');
+    }
+
     if (type == Type::Pointer) {
         std::stringstream stream;
         stream << ptr;
-        return stream.str();
+        str.append(stream.str());
     }
-    if (type == Type::String) return text;
-    if (type == Type::Symbol) return symbol;
-    if (type == Type::Number) return std::to_string(number);
+    if (type == Type::String) {
+        str.append(text);
+    }
+    if (type == Type::Symbol) {
+        str.append(symbol);
+    }
+    if (type == Type::Number) {
+        str.append(std::to_string(number));
+    }
     if (type == Type::List) {
-        std::string str;
-        if (!list.empty()) {
-            for (const auto &e : list) str.append(e.to_string()).push_back(' ');
-            str.pop_back();
-        }
-        return "list: (" + str + ")";
-    }
-    if (type == Type::Procedure) return "<Proc>";
-    if (type == Type::Lambda) {
-        std::string str;
+        str.append("(");
         if (!list.empty()) {
             for (const auto &e : list) {
                 str.append(e.to_string()).push_back(' ');
             }
             str.pop_back();
         }
-        return "lambda: (" + str + ")";
+        str.append(")");
     }
-    return "";
+    if (type == Type::Procedure) {
+        str.append("<Proc>");
+    }
+    if (type == Type::Lambda) {
+        str.append("(=> ");
+        str.append(list[0].to_string());
+        str.append(" ");
+        str.append(list[1].to_string());
+        str.append(")");
+    }
+    return str;
 }
 
 std::string lisp::Cell::get_typename(lisp::Env *env) const {
@@ -230,6 +243,12 @@ lisp::Cell lisp::parse(std::vector<token>::iterator& tokens) {
         return cell;
     }
 
+    if (tok.buffer == "...") {
+        Cell cell = parse(tokens);
+        cell._variadic_ = true;
+        return cell;
+    }
+
     if (tok.type == '\'') {
         Cell cell = parse(tokens);
         cell._quote_ = true;
@@ -264,6 +283,21 @@ lisp::Cell lisp::parse(std::vector<token>::iterator& tokens) {
     }
 }
 
+lisp::Cell lisp::apply(Env* env, Cell cell) {
+    if (cell.type == Cell::Type::Symbol) {
+        auto symbol = env->table.find(cell.symbol);
+        if (symbol != env->table.end()) {
+            return symbol->second;
+        }
+    }
+    if (cell.type == Cell::Type::List) {
+        for (auto &_cell_ : cell.list) {
+            _cell_ = apply(env, _cell_);
+        }
+    }
+    return cell;
+}
+
 lisp::Cell lisp::eval(Env* env, Cell cell) {
     if (cell._quote_) {
         cell._quote_ = false;
@@ -284,10 +318,6 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
         auto list = cell.list;
 
         if (list.empty()) return cell;
-
-        if (list[0].symbol == "...") {
-            return (void*) nullptr;
-        }
 
         if (list[0].symbol == "begin") {
             Env context {{}, env};
@@ -314,32 +344,32 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
         if (func.type == Cell::Type::Lambda) {
             Env context {{}, env};
 
-            auto values = list.begin() + 1;
-            for (auto& arg : func.list[0].list) {
-                context.table[arg.symbol] = eval(env, *values++);
-            }
-
+            auto args = func.list[0];
             auto body = func.list[1];
+            auto val = list.begin() + 1;
+            auto vend = list.end();
 
-            if (func._inline_) {
-                if (body.type == Cell::Type::List) {
-                    for (auto &arg : body.list) {
-                        arg = eval(&context, arg);
+            auto arg = args.list.begin();
+            auto end = args.list.end();
+
+
+            while (arg != end) {
+                if ((*arg)._variadic_) {
+                    std::vector<Cell> va_arg;
+                    while (val != vend) {
+                        va_arg.push_back(func._inline_ ? *val++ : eval(env, *val++));
                     }
-                    body = body.list;
-                } else {
-                    body = eval(&context, body);
+                    context.table[(*arg++).symbol] = va_arg;
+                    break;
                 }
 
-                body._inline_ = true;
-
-                return eval(env, body);
+                context.table[(*arg++).symbol] = func._inline_ ? *val++ : eval(env, *val++);
             }
 
-            return eval(&context, body);
+            return eval(func._inline_ ? env : &context, func._inline_ ? apply(&context, body) : body);
         }
 
-        printf("error: %s is not callable\n", list[0].to_string().c_str());
+        printf("error: %s is not callable => %s\n", list[0].to_string().c_str(), cell.to_string().c_str());
         exit(1);
     }
     return cell;
@@ -455,3 +485,7 @@ std::string lisp::demangle(const std::string &name) {
 
     return out;
 }
+
+//bool lisp::cast(Type from, Type to) {
+//    return to.is_base_of(from);
+//}
