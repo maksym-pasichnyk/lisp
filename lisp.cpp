@@ -1,4 +1,7 @@
 #include "lisp.h"
+#include "lisp-core.h"
+#include "lisp-dl.h"
+#include "lisp-gl.h"
 #include <sstream>
 #include <dlfcn.h>
 
@@ -46,12 +49,9 @@
 //    -5, -5, -5, -5, -5, -5
 //};
 
-struct token {
-    int type;
-    std::string buffer;
-};
 
-static std::vector<token> lex(const char* input) {
+
+std::vector<token> lex(const char* input) {
     std::vector<token> out;
 
 //    while (*input) {
@@ -492,3 +492,128 @@ std::string lisp::demangle(const std::string &name) {
 //bool lisp::cast(Type from, Type to) {
 //    return to.is_base_of(from);
 //}
+
+int level = 0;
+
+lisp::Cell visit(lisp::Env* env, lisp::Cell cell) {
+    if (cell._quote_) {
+        cell._quote_ = false;
+        return cell;
+    }
+
+    if (cell._super_) {
+        cell._super_ = false;
+        return visit(env->super ? env->super : env, cell);
+    }
+
+    if (cell.type == lisp::Cell::Type::String) return cell;
+    if (cell.type == lisp::Cell::Type::Number) return cell;
+    if (cell.type == lisp::Cell::Type::Symbol) {
+        return env->Find(cell.symbol);
+    }
+    if (cell.type == lisp::Cell::Type::List) {
+        auto list = cell.list;
+
+        if (list.empty()) return cell;
+
+        if (list[0].symbol == "begin") {
+            printf("%*c{\n", (level += 4) - 4, ' ');
+
+            lisp::Env context {{}, env};
+            for (size_t i = 1; i < list.size() - 1; ++i) {
+                visit(&context, list[i]);
+            }
+            auto out = visit(&context, list[list.size() - 1]);
+            printf("%*c}\n", (level -= 4), ' ');
+            return out;
+        }
+
+        auto func = visit(env, list[0]);
+
+        if (func.type == lisp::Cell::Type::Procedure) {
+            std::vector<lisp::Cell> args;
+
+            for (auto arg = list.begin() + 1; arg != list.end(); arg++) {
+                auto type = (*arg).type;
+
+//                if (type == lisp::Cell::Type::Number)
+//                    printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+//                if (type == lisp::Cell::Type::Procedure)
+//                    printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+//                if (type == lisp::Cell::Type::Pointer)
+//                    printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+//                if (type == lisp::Cell::Type::String)
+//                    printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+//                if (type == lisp::Cell::Type::Symbol)
+//                    printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+//                if (type == lisp::Cell::Type::Lambda)
+//                    printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+//                if (type == lisp::Cell::Type::List) {
+//                    printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+//                }
+                //printf("%*cpush %s\n", level, ' ', (*arg).to_string().c_str());
+
+                args.push_back(cell._inline_ ? *arg : visit(env, *arg));
+            }
+
+            lisp::Cell out = func.proc(env, args);
+            out._inline_ = cell._inline_;
+
+            printf("%*c%s\n\n", level, ' ', list[0].to_string().c_str());
+
+            return out;
+        }
+
+        if (func.type == lisp::Cell::Type::Lambda) {
+            lisp::Env context {{}, env};
+
+            auto args = func.list[0];
+            auto body = func.list[1];
+            auto val = list.begin() + 1;
+            auto vend = list.end();
+
+            auto arg = args.list.begin();
+            auto end = args.list.end();
+
+            while (arg != end) {
+                if ((*arg)._variadic_) {
+                    std::vector<lisp::Cell> va_arg;
+                    while (val != vend) {
+                        printf("%*cpush %s\n", level, ' ', (*val).to_string().c_str());
+                        va_arg.push_back(func._inline_ ? *val++ : visit(env, *val++));
+                    }
+                    context.table[(*arg++).symbol] = va_arg;
+                    break;
+                }
+
+                printf("%*cpush %s\n", level, ' ', (*val).to_string().c_str());
+                context.table[(*arg++).symbol] = func._inline_ ? *val++ : visit(env, *val++);
+            }
+
+            printf("%*c%s\n", level, ' ', list[0].to_string().c_str());
+
+            return visit(func._inline_ ? env : &context, func._inline_ ? lisp::apply(&context, body) : body);
+        }
+
+        printf("error: %s is not callable => %s\n", list[0].to_string().c_str(), cell.to_string().c_str());
+        exit(1);
+    }
+    return cell;
+}
+
+void lisp::compile(const std::string& source) {
+//    auto tokens = lex(source.c_str());
+//    auto it = tokens.begin();
+//
+//    auto ast = lisp::parse(it);
+//
+//    level = 0;
+//
+//    lisp::Env env;
+//
+//    import_core(env);
+//    import_dl(env);
+//    import_gl(env);
+//
+//    visit(&env, ast);
+}

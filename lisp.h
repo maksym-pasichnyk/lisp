@@ -6,47 +6,52 @@
 #include <vector>
 #include <functional>
 
-struct Type {
-    std::string name;
-    std::vector<Type> base;
-
-    std::string mangle() {
-        std::string type;
-        type.append(std::to_string(name.size()));
-        type.append(name);
-        return type;
-    }
-
-    bool is_base_of(Type other) {
-        if (name == other.name) {
-            return true;
-        }
-
-        for (auto& type : base) {
-            if (type.is_base_of(type)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
+struct token {
+    int type;
+    std::string buffer;
 };
 
-struct Method {
-    std::string name;
-
-    Type result;
-    std::vector<Type> args;
-
-    std::string mangle() {
-        std::string type;
-        type.append(std::to_string(name.size()));
-        for (auto& arg : args) {
-            type.append(arg.mangle());
-        }
-        return type;
-    }
-};
+//struct Type {
+//    std::string name;
+//    std::vector<Type> base;
+//
+//    std::string mangle() {
+//        std::string type;
+//        type.append(std::to_string(name.size()));
+//        type.append(name);
+//        return type;
+//    }
+//
+//    bool is_base_of(Type other) {
+//        if (name == other.name) {
+//            return true;
+//        }
+//
+//        for (auto& type : base) {
+//            if (type.is_base_of(type)) {
+//                return true;
+//            }
+//        }
+//
+//        return false;
+//    }
+//};
+//
+//struct Method {
+//    std::string name;
+//
+//    Type result;
+//    std::vector<Type> args;
+//
+//    std::string mangle() {
+//        std::string type;
+//        type.append(std::to_string(name.size()));
+//        for (auto& arg : args) {
+//            type.append(arg.mangle());
+//        }
+//        return type;
+//    }
+//};
 
 struct lisp {
     struct Env;
@@ -112,9 +117,11 @@ struct lisp {
 
     static std::string demangle(const std::string &name);
 
-private:
+//private:
     static Cell parse(const std::string &source);
     static Cell parse(std::vector<struct token>::iterator &tokens);
 
     static Cell apply(Env *env, Cell cell);
+
+    static void compile(const std::string &source);
 };
