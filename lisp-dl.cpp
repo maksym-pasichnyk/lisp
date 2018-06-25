@@ -7,7 +7,7 @@ lisp::Cell lisp_dlopen(lisp::Env*, const lisp::List& args) {
 }
 
 lisp::Cell lisp_dlsym(lisp::Env*, const lisp::List& args) {
-    return lisp::Func(dlsym(args[0].ptr, args[1].text.c_str()));
+    return lisp::Proc(dlsym(args[0].ptr, args[1].text.c_str()));
 }
 
 void import_dl(lisp::Env& env) {

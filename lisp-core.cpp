@@ -26,7 +26,7 @@ lisp::Cell lisp_ptr_to_int(lisp::Env* env, const lisp::List& args) {
 }
 
 lisp::Cell lisp_subscript(lisp::Env* env, const lisp::List& args) {
-    if (args[1].type == lisp::Cell::Type::Pointer) {
+    if (args[1].type == lisp::Type::Ptr) {
         return reinterpret_cast<char*>(args[1].ptr)[args[0].number];
     }
     return args[1].list[args[0].number];
@@ -64,28 +64,24 @@ bool operator ==(const lisp::Cell& a, const lisp::Cell& b) {
         exit(1);
     }
 
-    if (a.type == lisp::Cell::Type::Number) {
+    if (a.type == lisp::Type::Number) {
         return a.number == b.number;
     }
 
-    if (a.type == lisp::Cell::Type::String) {
+    if (a.type == lisp::Type::String) {
         return a.text == b.text;
     }
 
-    if (a.type == lisp::Cell::Type::Symbol) {
+    if (a.type == lisp::Type::Symbol) {
         return a.symbol == b.symbol;
     }
 
-    if (a.type == lisp::Cell::Type::Procedure) {
+    if (a.type == lisp::Type::Proc) {
         return a.proc == b.proc;
     }
 
-    if (a.type == lisp::Cell::Type::List) {
+    if (a.type == lisp::Type::List) {
         return a.list == b.list;
-    }
-
-    if (a.type == lisp::Cell::Type::Lambda) {
-        return (a.env == b.env) && (a.lambda == b.lambda);
     }
 
     return false;
@@ -97,19 +93,19 @@ bool operator >(const lisp::Cell& a, const lisp::Cell& b) {
         exit(1);
     }
 
-    if (a.type == lisp::Cell::Type::Number) {
+    if (a.type == lisp::Type::Number) {
         return a.number > b.number;
     }
 
-    if (a.type == lisp::Cell::Type::String) {
+    if (a.type == lisp::Type::String) {
         return a.text > b.text;
     }
 
-    if (a.type == lisp::Cell::Type::Symbol) {
+    if (a.type == lisp::Type::Symbol) {
         return a.symbol > b.symbol;
     }
 
-    if (a.type == lisp::Cell::Type::Procedure) {
+    if (a.type == lisp::Type::Proc) {
         return a.proc > b.proc;
     }
 
@@ -122,19 +118,19 @@ bool operator <(const lisp::Cell& a, const lisp::Cell& b) {
         exit(1);
     }
 
-    if (a.type == lisp::Cell::Type::Number) {
+    if (a.type == lisp::Type::Number) {
         return a.number < b.number;
     }
 
-    if (a.type == lisp::Cell::Type::String) {
+    if (a.type == lisp::Type::String) {
         return a.text < b.text;
     }
 
-    if (a.type == lisp::Cell::Type::Symbol) {
+    if (a.type == lisp::Type::Symbol) {
         return a.symbol < b.symbol;
     }
 
-    if (a.type == lisp::Cell::Type::Procedure) {
+    if (a.type == lisp::Type::Proc) {
         return a.proc < b.proc;
     }
 
@@ -190,19 +186,19 @@ lisp::Cell lisp_div(lisp::Env* env, const lisp::List& args) {
 lisp::Cell lisp_not(lisp::Env* env, const lisp::List& args) {
     auto a = args[0];
 
-    if (a.type == lisp::Cell::Type::Number) {
+    if (a.type == lisp::Type::Number) {
         return !a.number;
     }
 
-    if (a.type == lisp::Cell::Type::String) {
+    if (a.type == lisp::Type::String) {
         return a.text.empty();
     }
 
-    if (a.type == lisp::Cell::Type::Procedure) {
+    if (a.type == lisp::Type::Proc) {
         return !a.proc;
     }
 
-    if (a.type == lisp::Cell::Type::List) {
+    if (a.type == lisp::Type::List) {
         return a.list.empty();
     }
 
@@ -215,7 +211,7 @@ lisp::Cell lisp_define(lisp::Env* env, const lisp::List& args) {
 
 lisp::Cell lisp_lambda(lisp::Env* env, const lisp::List& args) {
     lisp::Cell cell;
-    cell.type = lisp::Cell::Type::Lambda;
+    cell.type = lisp::Type::Lambda;
     cell.list = { args[0], args[1] };
     return cell;
 }

@@ -74,7 +74,7 @@ static inline void gen_push_imm(std::vector<uint8_t>& code, int imm) {
     gen_imm(code, imm);
 }
 
-FuncPtr make_func(void *ptr, const std::vector<Value> &args) {
+BlockPtr new_func(void *ptr, const std::vector<Value> &args) {
     std::vector<uint8_t> prepare_args;
 
     uint8_t push_size = 0x00;
@@ -112,7 +112,7 @@ FuncPtr make_func(void *ptr, const std::vector<Value> &args) {
     auto add_sp = uint8_t(sub_sp + push_size);
 
     std::vector<uint8_t> code;
-    code.insert(code.end(), { 0x48, 0x83, 0xec, sub_sp }); //sub rsp, imm
+    code.insert(code.end(), { 0x48, 0x83, 0xec, sub_sp });
     code.insert(code.end(), prepare_args.begin(), prepare_args.end());
     gen_call(code, (size_t)ptr);
     code.insert(code.end(), { 0xff, 0xd0 });
@@ -126,5 +126,9 @@ FuncPtr make_func(void *ptr, const std::vector<Value> &args) {
 
     make_executable(block, block_size);
 
-    return FuncPtr(block);
+    return { block, block_size };
+}
+
+void free_block(BlockPtr block) {
+    munmap(block.addr, block.len);
 }

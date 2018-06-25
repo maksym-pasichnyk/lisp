@@ -3,7 +3,10 @@
 #include <vector>
 #include <cstdint>
 
-typedef void(*FuncPtr)();
+struct BlockPtr {
+    void* addr = nullptr;
+    size_t len = 0;
+};
 
 struct Value {
     enum : uint8_t { Int, Ptr, Struct };
@@ -20,4 +23,5 @@ struct Value {
     }
 };
 
-extern FuncPtr make_func(void *ptr, const std::vector<Value> &args);
+extern BlockPtr new_func(void *ptr, const std::vector<Value> &args);
+extern void free_block(BlockPtr block);

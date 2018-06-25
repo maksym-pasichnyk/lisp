@@ -1,8 +1,8 @@
 #include <iostream>
+#include <dlfcn.h>
 #include "lisp-core.h"
 #include "lisp-gl.h"
 #include "lisp-dl.h"
-#include "lisp-jit.h"
 
 void test1() {
     std::cout << "Hello!" << std::endl;
@@ -13,17 +13,14 @@ void test2(int a, int b, int c) {
 }
 
 int main() {
-    std::vector<Value> args = {
-        Value::make_int(12),
-        Value::make_int(13),
-        Value::make_int(14),
-    };
+    lisp::Env env;
+    import_core(env);
 
-    auto func1 = make_func((void *) test1, {});
-    func1();
+    env.table["test1"] = (void *) test1;
+    env.table["test2"] = (void *) test2;
 
-    auto func2 = make_func((void *) test2, args);
-    func2();
+    lisp::eval(&env, "(test1)");
+    lisp::eval(&env, "(test2 10 11 12)");
 
 //    auto test = R"(
 //    (begin
