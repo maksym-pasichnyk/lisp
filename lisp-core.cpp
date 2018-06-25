@@ -16,11 +16,6 @@ lisp::Cell lisp_new(lisp::Env* env, const lisp::List& args) {
     return malloc(size_t(args[0].number));
 }
 
-lisp::Cell lisp_free(lisp::Env* env, const lisp::List& args) {
-    free(args[0].ptr);
-    return (void*)nullptr;
-}
-
 lisp::Cell lisp_ptr_to_int(lisp::Env* env, const lisp::List& args) {
     return *(int*)args[0].ptr;
 }
@@ -227,15 +222,10 @@ lisp::Cell lisp_while(lisp::Env* env, const lisp::List& args) {
     return (void *) nullptr;
 }
 
-lisp::Cell lisp_exit(lisp::Env* env, const lisp::List& args) {
-    exit(args[0].number);
-    return (void *) nullptr;
-}
-
 void import_core(lisp::Env& env) {
     env.table["print"] = lisp_print;
     env.table["new"] = lisp_new;
-    env.table["free"] = lisp_free;
+    env.table["free"] = lisp::CFunc(free);
     env.table["ptr_to_int"] = lisp_ptr_to_int;
     env.table["+"] = lisp_add;
     env.table["-"] = lisp_sub;
@@ -260,8 +250,8 @@ void import_core(lisp::Env& env) {
     env.table["=>"] = lisp_lambda;
     env.table["false"] = false;
     env.table["true"] = true;
-    env.table["null"] = (void*)nullptr;
-    env.table["exit"] = lisp_exit;
+    env.table["null"] = (void*) nullptr;
+    env.table["exit"] = lisp::CFunc(exit);
 
     lisp::eval(&env, "(def 'func inline (=> (name args body) (def name (=> args body))))");
     lisp::eval(&env, "(func 'map '(func lst) '(if (!= lst '()) '(begin(func ([] 0 lst))(map func (tail lst))) '()))");

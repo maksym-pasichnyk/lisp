@@ -119,6 +119,7 @@ lisp::Cell::Cell(Symbol symbol) : type(Type::Symbol), symbol(std::move(symbol)) 
 lisp::Cell::Cell(std::string text) : type(Type::String), text(std::move(text)) {}
 lisp::Cell::Cell(List list) : type(Type::List), list(std::move(list)) {}
 lisp::Cell::Cell(Proc proc) : type(Type::Proc), proc(proc) {}
+lisp::Cell::Cell(CFunc func) : type(Type::Func), func(func) {}
 
 std::string lisp::Cell::to_string() const {
     std::string str;
@@ -336,27 +337,29 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
 
         auto first = eval(env, list[0]);
 
-        if (first.type == Type::Ptr) {
-            std::vector<Value> c_args;
+        if (first.type == Type::Func) {
+            std::vector<Argument> args;
 
-            for (auto arg = list.begin() + 1; arg != list.end(); arg++) {
-                auto lisp_arg = cell._inline_ ? *arg : eval(env, *arg);
+            for (auto it = list.begin() + 1; it != list.end(); it++) {
+                auto arg = cell._inline_ ? *it : eval(env, *it);
 
-                if (lisp_arg.type == Type::Number) {
-                    c_args.push_back(Value::make_int(lisp_arg.number));
-                } else {
-                    fprintf(stderr, "FuncPtr: argument with type %s not supported!", lisp_arg.get_typename(env));
-                    exit(1);
+                switch (arg.type) {
+                    case Type::Number:
+                        args.push_back(Argument::make_int(arg.number));
+                        break;
+                    case Type::Ptr:
+                        args.push_back(Argument::make_ptr(arg.ptr));
+                        break;
+                    case Type::String:
+                        args.push_back(Argument::make_str(arg.text.c_str()));
+                        break;
+                    default:
+                        fprintf(stderr, "FuncPtr: argument with type '%s' not supported!\n", arg.get_typename(env).c_str());
+                        exit(1);
                 }
             }
 
-            BlockPtr block = new_func(first.ptr, c_args);
-
-            ((void(*)()) block.addr)();
-
-            free_block(block);
-
-            return (void*)nullptr;
+            return first.func.invoke(args);
         }
 
         if (first.type == Type::Proc) {
@@ -406,4 +409,8 @@ lisp::Cell lisp::eval(Env* env, Cell cell) {
 
 lisp::Cell lisp::eval(Env* env, const std::string& source) {
     return eval(env, parse(source));
+}
+
+lisp::Cell lisp::CFunc::invoke(const std::vector<Argument>& args) {
+    return func->invoke(args);
 }

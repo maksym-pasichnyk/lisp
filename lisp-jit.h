@@ -8,20 +8,34 @@ struct BlockPtr {
     size_t len = 0;
 };
 
-struct Value {
-    enum : uint8_t { Int, Ptr, Struct };
+struct Argument {
+    enum : uint8_t { Int, Ptr, Str };
 
     uint8_t type;
-    int number = 0;
+    int i = 0;
+    void* p = nullptr;
+    const char* s = nullptr;
 
-    explicit Value(uint8_t type) : type(type) {}
+    explicit Argument(uint8_t type) : type(type) {}
 
-    static Value make_int(int i) {
-        Value val(Int);
-        val.number = i;
+    static inline Argument make_int(int i) {
+        Argument val(Int);
+        val.i = i;
+        return val;
+    }
+
+    static inline Argument make_ptr(void* p) {
+        Argument val(Ptr);
+        val.p = p;
+        return val;
+    }
+
+    static inline Argument make_str(const char *s) {
+        Argument val(Str);
+        val.s = s;
         return val;
     }
 };
 
-extern BlockPtr new_func(void *ptr, const std::vector<Value> &args);
-extern void free_block(BlockPtr block);
+extern BlockPtr new_func(void *ptr, const std::vector<Argument> &args);
+extern void del_func(BlockPtr block);
