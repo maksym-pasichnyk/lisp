@@ -12,19 +12,20 @@ lisp::Cell lisp_eval(lisp::Env* env, const lisp::List& args) {
     return lisp::eval(env, args[0]);
 }
 
-lisp::Cell lisp_new(lisp::Env* env, const lisp::List& args) {
-    return malloc(size_t(args[0].number));
-}
-
 lisp::Cell lisp_ptr_to_int(lisp::Env* env, const lisp::List& args) {
     return *(int*)args[0].ptr;
 }
 
 lisp::Cell lisp_subscript(lisp::Env* env, const lisp::List& args) {
-    if (args[1].type == lisp::Type::Ptr) {
-        return reinterpret_cast<char*>(args[1].ptr)[args[0].number];
+    if (args[1].type->is_pointer()) {
+        auto type = args[1].type->remove_pointer();
+        if (type->is_incomplete()) {
+            fprintf(stderr, "lisp_subscript: bad type");
+            exit(1);
+        }
+        return reinterpret_cast<char*>(args[1].ptr)[args[0].i32];
     }
-    return args[1].list[args[0].number];
+    return args[1].list[args[0].i32];
 }
 
 lisp::Cell lisp_front(lisp::Env* env, const lisp::List& args) {
@@ -41,41 +42,41 @@ lisp::Cell lisp_tail(lisp::Env* env, const lisp::List& args) {
 
 lisp::Cell lisp_add(lisp::Env* env, const lisp::List& args) {
     auto arg = args.begin();
-    int result = (*arg++).number;
-    while (arg != args.end()) result += (*arg++).number;
+    int result = (*arg++).i32;
+    while (arg != args.end()) result += (*arg++).i32;
     return result;
 }
 
 lisp::Cell lisp_sub(lisp::Env* env, const lisp::List& args) {
     auto arg = args.begin();
-    int result = (*arg++).number;
-    while (arg != args.end()) result -= (*arg++).number;
+    int result = (*arg++).i32;
+    while (arg != args.end()) result -= (*arg++).i32;
     return result;
 }
 
 bool operator ==(const lisp::Cell& a, const lisp::Cell& b) {
-    if (a.type != b.type) {
-        fprintf(stderr, "%s and %s has different types\n", a.to_string().c_str(), b.to_string().c_str());
+    if (*a.type != *b.type) {
+        fprintf(stderr, "%s and %s has different types\n", a.type->pretty_name().c_str(), b.type->pretty_name().c_str());
         exit(1);
     }
 
-    if (a.type == lisp::Type::Number) {
-        return a.number == b.number;
+    if (a.type->is_integral()) {
+        return a.i32 == b.i32;
     }
 
-    if (a.type == lisp::Type::String) {
-        return a.text == b.text;
+    if (*a.type == *get_type<std::string>()) {
+        return a.s == b.s;
     }
 
-    if (a.type == lisp::Type::Symbol) {
-        return a.symbol == b.symbol;
+    if (*a.type == *get_type<lisp::Symbol>()) {
+        return a.s == b.s;
     }
 
-    if (a.type == lisp::Type::Proc) {
+    if (a.type->is_function()) {
         return a.proc == b.proc;
     }
 
-    if (a.type == lisp::Type::List) {
+    if (*a.type == *get_type<lisp::List>()) {
         return a.list == b.list;
     }
 
@@ -83,24 +84,24 @@ bool operator ==(const lisp::Cell& a, const lisp::Cell& b) {
 }
 
 bool operator >(const lisp::Cell& a, const lisp::Cell& b) {
-    if (a.type != b.type) {
-        fprintf(stderr, "%s and %s has different types\n", a.to_string().c_str(), b.to_string().c_str());
+    if (*a.type != *b.type) {
+        fprintf(stderr, "%s and %s has different types\n", a.type->pretty_name().c_str(), b.type->pretty_name().c_str());
         exit(1);
     }
 
-    if (a.type == lisp::Type::Number) {
-        return a.number > b.number;
+    if (a.type->is_integral()) {
+        return a.i64 > b.i64;
     }
 
-    if (a.type == lisp::Type::String) {
-        return a.text > b.text;
+    if (*a.type == *get_type<std::string>()) {
+        return a.s > b.s;
     }
 
-    if (a.type == lisp::Type::Symbol) {
-        return a.symbol > b.symbol;
+    if (*a.type == *get_type<lisp::Symbol>()) {
+        return a.s > b.s;
     }
 
-    if (a.type == lisp::Type::Proc) {
+    if (a.type->is_function()) {
         return a.proc > b.proc;
     }
 
@@ -108,24 +109,24 @@ bool operator >(const lisp::Cell& a, const lisp::Cell& b) {
 }
 
 bool operator <(const lisp::Cell& a, const lisp::Cell& b) {
-    if (a.type != b.type) {
-        fprintf(stderr, "%s and %s has different types\n", a.to_string().c_str(), b.to_string().c_str());
+    if (*a.type != *b.type) {
+        fprintf(stderr, "%s and %s has different types\n", a.type->pretty_name().c_str(), b.type->pretty_name().c_str());
         exit(1);
     }
 
-    if (a.type == lisp::Type::Number) {
-        return a.number < b.number;
+    if (a.type->is_integral()) {
+        return a.i64 < b.i64;
     }
 
-    if (a.type == lisp::Type::String) {
-        return a.text < b.text;
+    if (*a.type == *get_type<std::string>()) {
+        return a.s < b.s;
     }
 
-    if (a.type == lisp::Type::Symbol) {
-        return a.symbol < b.symbol;
+    if (*a.type == *get_type<lisp::Symbol>()) {
+        return a.s < b.s;
     }
 
-    if (a.type == lisp::Type::Proc) {
+    if (a.type->is_function()) {
         return a.proc < b.proc;
     }
 
@@ -157,7 +158,7 @@ lisp::Cell lisp_le(lisp::Env* env, const lisp::List& args) {
 }
 
 lisp::Cell lisp_if(lisp::Env* env, const lisp::List& args) {
-    return lisp::eval(env, args[0]).number ? lisp::eval(env, args[1]) : lisp::eval(env, args[2]);
+    return lisp::eval(env, args[0]).i32 ? lisp::eval(env, args[1]) : lisp::eval(env, args[2]);
 }
 
 lisp::Cell lisp_len(lisp::Env* env, const lisp::List& args) {
@@ -166,34 +167,38 @@ lisp::Cell lisp_len(lisp::Env* env, const lisp::List& args) {
 
 lisp::Cell lisp_mul(lisp::Env* env, const lisp::List& args) {
     auto arg = args.begin();
-    int result = (*arg++).number;
-    while (arg != args.end()) result *= (*arg++).number;
+    int result = (*arg++).i32;
+    while (arg != args.end()) result *= (*arg++).i32;
     return (result);
 }
 
 lisp::Cell lisp_div(lisp::Env* env, const lisp::List& args) {
     auto arg = args.begin();
-    int result = (*arg++).number;
-    while (arg != args.end()) result /= (*arg++).number;
+    int result = (*arg++).i32;
+    while (arg != args.end()) result /= (*arg++).i32;
     return (result);
+}
+
+lisp::Cell lisp_ret(lisp::Env* env, const lisp::List& args) {
+    return args.back();
 }
 
 lisp::Cell lisp_not(lisp::Env* env, const lisp::List& args) {
     auto a = args[0];
 
-    if (a.type == lisp::Type::Number) {
-        return !a.number;
+    if (a.type->is_scalar()) {
+        return !a.b;
     }
 
-    if (a.type == lisp::Type::String) {
-        return a.text.empty();
+    if (*a.type == *get_type<std::string>()) {
+        return a.s.empty();
     }
 
-    if (a.type == lisp::Type::Proc) {
+    if (a.type->is_function()) {
         return !a.proc;
     }
 
-    if (a.type == lisp::Type::List) {
+    if (*a.type == *get_type<lisp::List>()) {
         return a.list.empty();
     }
 
@@ -201,12 +206,12 @@ lisp::Cell lisp_not(lisp::Env* env, const lisp::List& args) {
 }
 
 lisp::Cell lisp_define(lisp::Env* env, const lisp::List& args) {
-    return env->table[args[0].symbol] = args[1];
+    return env->table[args[0].s] = args[1];
 }
 
 lisp::Cell lisp_lambda(lisp::Env* env, const lisp::List& args) {
     lisp::Cell cell;
-    cell.type = lisp::Type::Lambda;
+    cell.type = get_type<lisp::Lambda>();
     cell.list = { args[0], args[1] };
     return cell;
 }
@@ -215,7 +220,7 @@ lisp::Cell lisp_while(lisp::Env* env, const lisp::List& args) {
     auto cond = args[0];
     auto body = args[1];
 
-    while (lisp::eval(env, cond).number) {
+    while (lisp::eval(env, cond).i32) {
         lisp::eval(env, body);
     }
 
@@ -224,7 +229,7 @@ lisp::Cell lisp_while(lisp::Env* env, const lisp::List& args) {
 
 void import_core(lisp::Env& env) {
     env.table["print"] = lisp_print;
-    env.table["new"] = lisp_new;
+    env.table["malloc"] = lisp::CFunc(malloc);
     env.table["free"] = lisp::CFunc(free);
     env.table["ptr_to_int"] = lisp_ptr_to_int;
     env.table["+"] = lisp_add;
@@ -252,6 +257,7 @@ void import_core(lisp::Env& env) {
     env.table["true"] = true;
     env.table["null"] = (void*) nullptr;
     env.table["exit"] = lisp::CFunc(exit);
+    env.table["ret"] = lisp_ret;
 
     lisp::eval(&env, "(def 'func inline (=> (name args body) (def name (=> args body))))");
     lisp::eval(&env, "(func 'map '(func lst) '(if (!= lst '()) '(begin(func ([] 0 lst))(map func (tail lst))) '()))");

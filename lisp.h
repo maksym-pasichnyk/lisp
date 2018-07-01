@@ -8,94 +8,82 @@
 #include "lisp-jit.h"
 
 struct lisp {
-    enum class Type { Symbol, Number, List, Proc, Lambda, Ptr, String, Func };
+private:
+    struct FuncPtr;
 
+public:
     struct Env;
     struct Cell;
 
-    struct FuncPtr {
-        virtual lisp::Cell invoke(const std::vector<Argument>&) = 0;
-    };
-
-    template <typename T>
-    struct Func;
-
-    template <typename T, typename ...Args>
-    struct Func <T(Args...)> : FuncPtr {
-        void* ptr;
-
-        Func(void* ptr) : ptr(ptr) {}
-        Func(T(*ptr)(Args...)) : ptr((void*) ptr) {}
-
-        virtual lisp::Cell invoke(const std::vector<Argument>& args) override {
-            BlockPtr block = new_func(ptr, args);
-
-            auto res = ((T(*)()) block.addr)();
-            del_func(block);
-            return res;
-        }
-    };
-
-    template <typename ...Args>
-    struct Func <void(Args...)> : FuncPtr {
-        void* ptr;
-
-        Func(void* ptr) : ptr(ptr) {}
-        Func(void(*ptr)(Args...)) : ptr((void*) ptr) {}
-
-        virtual lisp::Cell invoke(const std::vector<Argument>& args) override {
-            BlockPtr block = new_func(ptr, args);
-
-            ((void(*)()) block.addr)();
-            del_func(block);
-            return (void*) nullptr;
-        }
-    };
-
-    typedef std::vector<Cell> List;
-    typedef lisp::Cell(*Proc)(Env*, const List&);
-
+    using List = std::vector<Cell>;
+    using Proc = lisp::Cell(lisp::Env*, const lisp::List&);
     struct Symbol : std::string {
-        Symbol(const std::string& str) : std::string(str) {}
+        explicit Symbol(const std::string& str) : std::string(str) {}
     };
 
     struct CFunc {
-        FuncPtr* func;
+        FuncPtr* func = nullptr;
 
-        CFunc() {}
-
-        template <typename T, typename ...Args>
-        CFunc(void* ptr) : func(new Func<T(Args...)>(ptr)) {}
+        CFunc() = default;
 
         template <typename T, typename ...Args>
-        CFunc(T(*ptr)(Args...)) : func(new Func<T(Args...)>(ptr)) {}
+        explicit CFunc(T(*ptr)(Args...)) : func(new Func<T(Args...)>(ptr)) {}
 
         lisp::Cell invoke(const std::vector<Argument>& args);
     };
+
+    struct Lambda {};
 
     struct Cell {
     public:
         Type type;
 
-        void* ptr = nullptr;
-        int number = 0;
-        std::string text;
-        std::string symbol;
+        union {
+            bool b;
+
+            int8_t i8;
+            uint8_t u8;
+
+            int16_t i16;
+            uint16_t u16;
+
+            int32_t i32;
+            uint32_t u32;
+
+            int64_t i64;
+            uint64_t u64{};
+
+            float f;
+            double d;
+
+            void* ptr;
+            Proc* proc;
+        };
+
+        std::string s;
+
         std::vector<Cell> list;
-        Proc proc = nullptr;
         CFunc func;
         Env* env = nullptr;
 
-        Cell();
-        Cell(void* ptr);
-        Cell(int number);
-        Cell(Symbol symbol);
-        Cell(std::string text);
-        Cell(List list);
-        Cell(Proc proc);
-        Cell(CFunc func);
+        Cell() : type(get_type<void>()) {}
 
-        std::string get_typename(Env *env) const;
+        template <typename T> Cell(T val) = delete;
+
+        Cell(void* val) : type(get_type<void*>()), ptr(val) {}
+        Cell(bool val) : type(get_type<bool>()), b(val) {}
+        Cell(char val) : type(get_type<char>()), i8(val) {}
+        Cell(int val) : type(get_type<int>()), i32(val)  {}
+        Cell(float val) : type(get_type<float>()), f(val) {}
+        Cell(double val) : type(get_type<double>()), d(val) {}
+        Cell(Symbol val) : type(get_type<Symbol>()), s(std::move(val)) {}
+        Cell(std::string val) : type(get_type<std::string>()), s(std::move(val)) {}
+        Cell(List val) : type(get_type<List>()), list(std::move(val)) {}
+        Cell(Proc val) : type(get_type<Proc>()), proc(val) {}
+        Cell(CFunc val) : type(get_type<CFunc>()), func(val) {}
+
+        template <typename T>
+        Cell(T* val) : type(get_type<void*>()), ptr((void*)val) {}
 
         std::string to_string() const;
 
@@ -115,12 +103,47 @@ struct lisp {
         void dump();
     };
 
-    static Cell eval(Env *env, const std::string &source);
+    static Cell eval(Env *env, const char* source);
     static Cell eval(Env* env, Cell cell);
 
+    static Cell compile(const char* source);
 private:
+    struct FuncPtr {
+        virtual lisp::Cell invoke(const std::vector<Argument>&) = 0;
+    };
+
+    template <typename T>
+    struct Func;
+
+    template <typename T, typename ...Args>
+    struct Func <T(Args...)> final : FuncPtr {
+    private:
+        void* ptr;
+        ::Type return_type;
+        std::vector<::Type> args_types;
+
+    public:
+        explicit inline Func(T(*ptr)(Args...)) : ptr((void*) ptr), return_type(get_type<T>()), args_types({ get_type<Args>()... }) {}
+
+        lisp::Cell invoke(const std::vector<Argument>& args) final {
+            BlockPtr block = new_func(ptr, return_type, args_types, args);
+
+            if constexpr (std::is_void<T>::value) {
+                ((void(*)()) block.addr)();
+                del_block(block);
+                return 0;
+            } else {
+                auto res = ((T(*)()) block.addr)();
+                del_block(block);
+                return lisp::Cell(res);
+            }
+        }
+    };
+
     static Cell parse(const std::string &source);
     static Cell parse(std::vector<struct token>::iterator &tokens);
 
     static Cell apply(Env *env, Cell cell);
+
+    static Cell compile(Env *env, Cell cell);
 };

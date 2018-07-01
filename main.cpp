@@ -1,5 +1,3 @@
-#include <iostream>
-#include <dlfcn.h>
 #include "lisp-core.h"
 #include "lisp-gl.h"
 #include "lisp-dl.h"
@@ -13,7 +11,7 @@ int main() {
         (glfwWindowHint GLFW_OPENGL_PROFILE GLFW_OPENGL_CORE_PROFILE)
         (glfwWindowHint GLFW_RESIZABLE GL_FALSE)
 
-        (def 'window (glfwCreateWindow 800 600 "LispOpenGL" null null))
+        (def 'window (glfwCreateWindow 800 600 "Lisp Test" null null))
 
         (if '(== window null)
             '(begin
@@ -25,8 +23,8 @@ int main() {
 
         (glfwMakeContextCurrent window)
 
-        (def 'width (new 4))
-        (def 'height (new 4))
+        (def 'width (malloc 4))
+        (def 'height (malloc 4))
 
         (glfwGetFramebufferSize window width height)
 
@@ -47,21 +45,9 @@ int main() {
     )";
 
     lisp::Env env;
-
     import_core(env);
     import_dl(env);
     import_gl(env);
 
     lisp::eval(&env, test);
-
-//    lisp::eval(&env, test);
-//    std::string line;
-//    while (true) {
-//        std::cout << "lisp> ";
-//        std::getline(std::cin, line);
-//
-//        if (line.empty()) break;
-//
-//        lisp::eval(&env, line);
-//    }
 }

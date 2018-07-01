@@ -2,6 +2,9 @@
 
 #include <vector>
 #include <cstdint>
+#include <string>
+#include <cxxabi.h>
+#include "lisp-type.h"
 
 struct BlockPtr {
     void* addr = nullptr;
@@ -9,33 +12,64 @@ struct BlockPtr {
 };
 
 struct Argument {
-    enum : uint8_t { Int, Ptr, Str };
+    Type type;
 
-    uint8_t type;
-    int i = 0;
-    void* p = nullptr;
-    const char* s = nullptr;
+    union {
+        int8_t i8;
+        uint8_t u8;
 
-    explicit Argument(uint8_t type) : type(type) {}
+        int16_t i16;
+        uint16_t u16;
 
-    static inline Argument make_int(int i) {
-        Argument val(Int);
-        val.i = i;
+        int32_t i32;
+        uint32_t u32;
+
+        int64_t i64;
+        uint64_t u64;
+
+        void* p;
+    };
+
+    std::string s;
+
+    explicit Argument(Type type) : type(type) {}
+
+    static inline Argument NewInt8(int8_t i8) {
+        static Argument val(get_type<int8_t>());
+        val.i8 = i8;
         return val;
     }
 
-    static inline Argument make_ptr(void* p) {
-        Argument val(Ptr);
+    static inline Argument NewInt16(int8_t i16) {
+        static Argument val(get_type<int16_t>());
+        val.i16 = i16;
+        return val;
+    }
+
+    static inline Argument NewInt32(int32_t i32) {
+        static Argument val(get_type<int32_t>());
+        val.i32 = i32;
+        return val;
+    }
+
+    static inline Argument NewInt64(int64_t i64) {
+        static Argument val(get_type<int64_t>());
+        val.i64 = i64;
+        return val;
+    }
+
+    static inline Argument NewPtr(void *p) {
+        static Argument val(get_type<void*>());
         val.p = p;
         return val;
     }
 
-    static inline Argument make_str(const char *s) {
-        Argument val(Str);
+    static inline Argument NewStr(const std::string& s) {
+        static Argument val(get_type<std::string>());
         val.s = s;
         return val;
     }
 };
 
-extern BlockPtr new_func(void *ptr, const std::vector<Argument> &args);
-extern void del_func(BlockPtr block);
+extern BlockPtr new_func(void *ptr, Type return_type, const std::vector<Type>& args_types, const std::vector<Argument>& args);
+extern void del_block(BlockPtr block);
